@@ -449,7 +449,7 @@ static UniValue getaddressesbyaccount(const JSONRPCRequest& request)
 
 static CTransactionRef SendMoney(CWallet * const pwallet, const CTxDestination &address, CAmount nValue, bool fSubtractFeeFromAmount, const CCoinControl& coin_control, mapValue_t mapValue, std::string fromAccount)
 {
-    CAmount curBalance = pwallet->GetBalance();
+    CAmount curBalance = pwallet->GetBalance().m_mine_trusted;
 
     // Check amount
     if (nValue <= 0)
@@ -970,12 +970,13 @@ static UniValue getbalance(const JSONRPCRequest& request)
     }
 
     isminefilter filter = ISMINE_SPENDABLE;
+    bool include_watchonly = false;
     if (!request.params[3].isNull() && request.params[3].get_bool()) {
         filter = filter | ISMINE_WATCH_ONLY;
+        include_watchonly = true;
     }
 
     if (!account_value.isNull()) {
-
         const std::string& account_param = account_value.get_str();
         const std::string* account = account_param != "*" ? &account_param : nullptr;
 
@@ -985,8 +986,8 @@ static UniValue getbalance(const JSONRPCRequest& request)
             return ValueFromAmount(pwallet->GetLegacyBalance(filter, min_depth, account, fAddLocked));
         }
     }
-
-    return ValueFromAmount(pwallet->GetBalance(filter, min_depth, fAddLocked));
+    const auto bal = pwallet->GetBalance(min_depth, fAddLocked);
+    return ValueFromAmount(bal.m_mine_trusted + (include_watchonly ? bal.m_watchonly_trusted : 0));
 }
 
 static UniValue getunconfirmedbalance(const JSONRPCRequest &request)
@@ -1009,7 +1010,7 @@ static UniValue getunconfirmedbalance(const JSONRPCRequest &request)
 
     LOCK2(cs_main, pwallet->cs_wallet);
 
-    return ValueFromAmount(pwallet->GetUnconfirmedBalance());
+    return ValueFromAmount(pwallet->GetBalance().m_mine_untrusted_pending);
 }
 
 
@@ -3077,12 +3078,13 @@ static UniValue getwalletinfo(const JSONRPCRequest& request)
     bool fHDEnabled = pwallet->GetHDChain(hdChainCurrent);
     UniValue obj(UniValue::VOBJ);
 
+    const auto bal = pwallet->GetBalance();
     obj.pushKV("walletname", pwallet->GetName());
     obj.pushKV("walletversion", pwallet->GetVersion());
-    obj.pushKV("balance",       ValueFromAmount(pwallet->GetBalance()));
+    obj.pushKV("balance", ValueFromAmount(bal.m_mine_trusted));
     obj.pushKV("coinjoin_balance",       ValueFromAmount(pwallet->GetAnonymizedBalance()));
-    obj.pushKV("unconfirmed_balance", ValueFromAmount(pwallet->GetUnconfirmedBalance()));
-    obj.pushKV("immature_balance",    ValueFromAmount(pwallet->GetImmatureBalance()));
+    obj.pushKV("unconfirmed_balance", ValueFromAmount(bal.m_mine_untrusted_pending));
+    obj.pushKV("immature_balance", ValueFromAmount(bal.m_mine_immature));
     obj.pushKV("txcount",       (int)pwallet->mapWallet.size());
     obj.pushKV("timefirstkey", pwallet->GetTimeFirstKey());
     obj.pushKV("keypoololdest", pwallet->GetOldestKeyPoolTime());
