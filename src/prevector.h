@@ -215,7 +215,7 @@ private:
     }
 
     void fill(T* dst, const T* src, ptrdiff_t count) {
-        if (IS_TRIVIALLY_CONSTRUCTIBLE<T>::value) {
+        if (std::is_trivially_constructible<T>::value) {
             ::memmove(dst, src, count * sizeof(T));
         } else {
             for (ptrdiff_t i = 0; i < count; i++) {
@@ -549,7 +549,7 @@ public:
     static void assign_to(const_iterator b, const_iterator e, V& v) {
         // We know that internally the iterators are pointing to continues memory, so we can directly use the pointers here
         // This avoids internal use of std::copy and operator++ on the iterators and instead allows efficient memcpy/memmove
-        if (IS_TRIVIALLY_CONSTRUCTIBLE<T>::value) {
+        if (std::is_trivially_constructible<T>::value) {
             auto s = e - b;
             if (v.size() != s) {
                 v.resize(s);
